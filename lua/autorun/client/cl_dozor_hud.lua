@@ -1,31 +1,31 @@
 local LOGO_CONFIG = {
-    TextScale       = 0.55,  -- Размер шрифта надписи
-    TextOffsetY     = -20,   -- Смещение выше/ниже над глазом
-    PupilScale      = 0.16,  -- Радиус зрачка-точки
-    PupilOffsetY    = 0,     -- Смещение зрачка по вертикали
-    EyeOffsetY      = 5,     -- Общее смещение глаза в плашке
-
-    FrontRadius     = 17,    -- Радиус изгиба передних век
-    FrontThickness  = 4,     -- Толщина линии передних век
-    FrontOpening    = 4,     -- Раскрытие яркого глаза в пикселях
-
-    BackRadius      = 16,    -- Радиус изгиба задних век
-    BackThickness   = 4,     -- Толщина линии задних век
-    BackOpening     = 2,     -- Раскрытие темного глаза в пикселях
+    TextScale       = 0.55,  
+    TextOffsetY     = -20,   
+    PupilScale      = 0.15,  
+    PupilOffsetY    = 0,     
+    EyeOffsetY      = 5,     
+    FrontRadius     = 17,    
+    FrontThickness  = 4,     
+    FrontOpening    = 4,     
+    BackRadius      = 16,    
+    BackThickness   = 4,     
+    BackOpening     = 2,     
 }
 
-local cv_enabled    = CreateClientConVar("dozor_hud_enabled", "1", true, false)
+local cv_enabled    = CreateClientConVar("dozor_hud_enabled", "0", true, false) 
+local cv_recording  = CreateClientConVar("dozor_hud_recording", "1", true, false) 
 local cv_draw_bg    = CreateClientConVar("dozor_hud_draw_bg", "1", true, false)
 local cv_scale      = CreateClientConVar("dozor_hud_scale", "1.0", true, false)
 local cv_color_r    = CreateClientConVar("dozor_hud_color_r", "255", true, false)
 local cv_color_g    = CreateClientConVar("dozor_hud_color_g", "255", true, false)
 local cv_color_b    = CreateClientConVar("dozor_hud_color_b", "255", true, false)
 
-local cv_rank       = CreateClientConVar("dozor_hud_rank", "Лейтенант", true, false)
-local cv_name       = CreateClientConVar("dozor_hud_name", "Алексей Волков", true, false)
+local cv_rank       = CreateClientConVar("dozor_hud_rank", "Офицер", true, false)
+local cv_name       = CreateClientConVar("dozor_hud_name", "Сотрудник", true, false)
 local cv_device     = CreateClientConVar("dozor_hud_device", "ДОЗОР-77 [№0842]", true, false)
 
 local DozorSessionStartTime = DozorSessionStartTime or CurTime()
+local DozorRecordedTimeBeforePause = 0 
 
 local function UpdateDozorFonts()
     local scale = cv_scale:GetFloat() or 1.0
@@ -113,13 +113,21 @@ hook.Add("HUDPaint", "DrawDozorHUD_V4", function()
     if not cv_enabled:GetBool() then return end
     if not IsValid(LocalPlayer()) then return end
 
+    local ply = LocalPlayer()
     local custom_color = Color(cv_color_r:GetInt(), cv_color_g:GetInt(), cv_color_b:GetInt(), 255)
     local text_line1 = string.upper(cv_device:GetString())
-    local text_line2 = string.upper(cv_rank:GetString() .. " | " .. cv_name:GetString())
+    
+    local rp_name = ply.getDarkRPVar and ply:getDarkRPVar("rpname") or ply:Nick()
+    local text_line2 = string.upper(cv_rank:GetString() .. " | " .. rp_name)
+    
     local date_time  = os.date("%d/%m/%Y | %H:%M:%S")
     local rec_text   = "ЗАПИСЬ"
 
-    local session_time = math.floor(CurTime() - DozorSessionStartTime)
+    local session_time = DozorRecordedTimeBeforePause
+    if cv_recording:GetBool() then
+        session_time = math.floor(CurTime() - DozorSessionStartTime)
+    end
+    
     local s_hours   = string.format("%02d", math.floor(session_time / 3600))
     local s_minutes = string.format("%02d", math.floor((session_time % 3600) / 60))
     local s_seconds = string.format("%02d", math.floor(session_time % 60))
@@ -141,7 +149,6 @@ hook.Add("HUDPaint", "DrawDozorHUD_V4", function()
     local max_text_w = math.max(tw1, tw2, tw3, (r_tw + s_tw + 30))
     local logo_size  = math.Round(42 * scale)
     local gap        = math.Round(16 * scale)
-    
     local box_w      = max_text_w + logo_size + (gap * 3) + math.Round(35 * scale)
     local box_h      = (th1 * 3) + r_th + math.Round(32 * scale)
     local box_x, box_y = scrW - box_w - pad_x, pad_y
@@ -151,10 +158,16 @@ hook.Add("HUDPaint", "DrawDozorHUD_V4", function()
     end
 
     local rec_x, rec_y = box_x + gap, box_y + math.Round(12 * scale)
-    if math.floor(CurTime()) % 2 == 0 then
-        draw.RoundedBox(6, rec_x, rec_y + (r_th / 2) - 4, 8, 8, Color(230, 0, 0, 255))
+    
+    if cv_recording:GetBool() then
+        if math.floor(CurTime()) % 2 == 0 then
+            draw.RoundedBox(6, rec_x, rec_y + (r_th / 2) - 4, 8, 8, Color(230, 0, 0, 255))
+        end
+        draw.SimpleText(rec_text, "Dozor_Rec", rec_x + 14, rec_y, Color(230, 230, 230), TEXT_ALIGN_LEFT, TEXT_ALIGN_TOP)
+    else
+        draw.SimpleText("[ПАУЗА]", "Dozor_Rec", rec_x, rec_y, Color(150, 150, 150), TEXT_ALIGN_LEFT, TEXT_ALIGN_TOP)
     end
-    draw.SimpleText(rec_text, "Dozor_Rec", rec_x + 14, rec_y, Color(230, 230, 230), TEXT_ALIGN_LEFT, TEXT_ALIGN_TOP)
+    
     draw.SimpleText(session_text, "Dozor_Rec", rec_x + r_tw + math.Round(30 * scale), rec_y, Color(200, 200, 200), TEXT_ALIGN_LEFT, TEXT_ALIGN_TOP)
 
     local text_x, text_y = box_x + gap, rec_y + r_th + math.Round(10 * scale)
@@ -167,17 +180,21 @@ hook.Add("HUDPaint", "DrawDozorHUD_V4", function()
     DrawDozorLogo(logo_x, logo_y, logo_size)
 end)
 
-concommand.Add("dozor_toggle", function()
-    local cur = cv_enabled:GetBool()
-    RunConsoleCommand("dozor_hud_enabled", cur and "0" or "1")
-    surface.PlaySound("axon_speed.wav")
+net.Receive("Dozor_Cam_State", function()
+    local state = net.ReadBool()
+    RunConsoleCommand("dozor_hud_enabled", state and "1" or "0")
+    if state then
+        DozorSessionStartTime = CurTime()
+        DozorRecordedTimeBeforePause = 0
+        RunConsoleCommand("dozor_hud_recording", "1")
+    end
 end)
 
 concommand.Add("dozor_style_menu", function()
     if IsValid(DozorMenu) then DozorMenu:Remove() end
 
     DozorMenu = vgui.Create("DFrame")
-    DozorMenu:SetSize(380, 480) 
+    DozorMenu:SetSize(380, 440)
     DozorMenu:SetTitle("Управление Нательной Камерой «Дозор»")
     DozorMenu:Center()
     DozorMenu:MakePopup()
@@ -204,27 +221,55 @@ concommand.Add("dozor_style_menu", function()
     ent_device:Dock(TOP)
     ent_device:SetConVar("dozor_hud_device")
 
-    CreateInputLabel("Звание сотрудника:")
+    CreateInputLabel("Звание сотрудника (для вывода на HUD):")
     local ent_rank = scroll:Add("DTextEntry")
     ent_rank:Dock(TOP)
     ent_rank:SetConVar("dozor_hud_rank")
 
-    CreateInputLabel("ФИО сотрудника:")
-    local ent_name = scroll:Add("DTextEntry")
-    ent_name:Dock(TOP)
-    ent_name:SetConVar("dozor_hud_name")
+    local btn_panel = scroll:Add("DPanel")
+    btn_panel:Dock(TOP)
+    btn_panel:DockMargin(0, 15, 0, 5)
+    btn_panel:SetHeight(32)
+    btn_panel.Paint = function() end
 
-    local btn_reset = scroll:Add("DButton")
-    btn_reset:Dock(TOP)
-    btn_reset:DockMargin(0, 15, 0, 5)
-    btn_reset:SetHeight(30)
-    btn_reset:SetText("⏱ Перезапустить таймер дубля (00:00:00)")
+    local btn_rec = btn_panel:Add("DButton")
+    btn_rec:Dock(LEFT)
+    btn_rec:SetWidth(240)
+    
+    local is_rec = cv_recording:GetBool()
+    btn_rec:SetText(is_rec and "Остановить запись" or "Начать запись")
+    btn_rec:SetTextColor(Color(255, 255, 255))
+    btn_rec.Paint = function(self, w, h)
+        local active_rec = cv_recording:GetBool()
+        local col = active_rec and Color(180, 40, 40) or Color(40, 150, 40)
+        if self:IsHovered() then col = active_rec and Color(220, 50, 50) or Color(50, 180, 50) end
+        draw.RoundedBox(4, 0, 0, w, h, col)
+    end
+    btn_rec.DoClick = function()
+        local active_rec = cv_recording:GetBool()
+        if active_rec then
+            DozorRecordedTimeBeforePause = math.floor(CurTime() - DozorSessionStartTime)
+            RunConsoleCommand("dozor_hud_recording", "0")
+            btn_rec:SetText("Начать запись")
+        else
+            DozorSessionStartTime = CurTime() - DozorRecordedTimeBeforePause
+            RunConsoleCommand("dozor_hud_recording", "1")
+            btn_rec:SetText("Остановить запись")
+        end
+        surface.PlaySound("axon_speed.wav")
+    end
+
+    local btn_reset = btn_panel:Add("DButton")
+    btn_reset:Dock(RIGHT)
+    btn_reset:SetWidth(110)
+    btn_reset:SetText("Сброс")
     btn_reset:SetTextColor(Color(255, 255, 255))
     btn_reset.Paint = function(self, w, h)
         draw.RoundedBox(4, 0, 0, w, h, self:IsHovered() and Color(30, 144, 255) or Color(70, 130, 180))
     end
     btn_reset.DoClick = function()
         DozorSessionStartTime = CurTime()
+        DozorRecordedTimeBeforePause = 0
         surface.PlaySound("common/bugedit.wav")
     end
 
